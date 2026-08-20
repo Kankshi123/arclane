@@ -230,53 +230,43 @@
 
 
 
-/* â”€â”€ Method: Floating Editorial Magazine / Case Study Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Method: Floating Editorial Visual (Image Only) ────────────────── */
 .method-editorial-panel {
   position: absolute;
-  width: min(580px, 48vw);
-  max-height: min(440px, 75vh);
+  width: min(440px, 38vw);
+  aspect-ratio: 16 / 10;
   z-index: 25;
   pointer-events: none;
-  background: #F7F5EF;
-  border: 1px solid #111111;
-  box-shadow: 0 32px 80px rgba(17, 17, 17, 0.45), 0 12px 32px rgba(110, 30, 42, 0.25);
+  background: #2a1116;
+  border: 1px solid rgba(247, 245, 239, 0.2);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55), 0 12px 32px rgba(110, 30, 42, 0.35);
   overflow: hidden;
   will-change: transform, opacity, clip-path;
 }
 
-.method-panel-grid {
-  display: grid;
-  grid-template-columns: 210px 1fr;
+.method-image-wrap {
+  position: relative;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
   animation: method-panel-fade 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes method-panel-fade {
   from {
     opacity: 0;
-    transform: translateX(8px);
+    transform: scale(0.96);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: scale(1);
   }
-}
-
-.method-panel-media {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 280px;
-  background: #2a1116;
-  border-right: 1px solid #111111;
-  overflow: hidden;
 }
 
 .method-panel-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
   display: block;
   filter: saturate(1.04) contrast(1.02);
   transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
@@ -286,38 +276,6 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(247, 245, 239, 0.04) 0%, rgba(110, 30, 42, 0.32) 100%);
-}
-
-.method-panel-badge {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  font: 500 8.5px 'DM Mono';
-  letter-spacing: 0.14em;
-  color: #F7F5EF;
-  background: rgba(17, 17, 17, 0.82);
-  padding: 3px 7px;
-  backdrop-filter: blur(4px);
-}
-
-.method-panel-content {
-  padding: 20px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-}
-
-.method-panel-head {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.method-panel-eyebrow {
-  font: 500 9.5px 'DM Mono';
-  letter-spacing: 0.16em;
   color: #6E1E2A;
 }
 

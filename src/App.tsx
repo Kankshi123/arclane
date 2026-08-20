@@ -12,13 +12,19 @@ import workImage3 from './assets/photos/work-3.png'
 import heroBackgroundVideo from './assets/video/PixVerse_V6_Image_Text_540P_Create_a_premium_c.mp4'
 import globalMindsetImage from './assets/photos/global_mindset.png'
 import heroImage from './assets/hero.png'
+import discoverImage from './assets/photos/discover.png'
+import defineImage from './assets/photos/define.png'
+import designImage from './assets/photos/design.png'
+import deliverImage from './assets/photos/deliver.png'
+import scaleImage from './assets/photos/scale.png'
+
 
 const methodVisuals = [
-  { img: globalMindsetImage, label: '01 / DISCOVER', tag: 'Market & Strategic Landscape' },
-  { img: workImage1, label: '02 / DEFINE', tag: 'Strategic Priorities & Decision Framing' },
-  { img: aboutImage, label: '03 / DESIGN', tag: 'Architecture & Solution Blueprints' },
-  { img: workImage3, label: '04 / DELIVER', tag: 'Platform & Transformation Delivery' },
-  { img: workImage2, label: '05 / SCALE', tag: 'Growth Foundations & Optimization' },
+  { img: discoverImage, label: '01 / DISCOVER', tag: 'Market & Strategic Landscape', pos: '15% center' },
+  { img: defineImage, label: '02 / DEFINE', tag: 'Strategic Priorities & Decision Framing', pos: '80% center' },
+  { img: designImage, label: '03 / DESIGN', tag: 'Architecture & Solution Blueprints', pos: '78% center' },
+  { img: deliverImage, label: '04 / DELIVER', tag: 'Platform & Transformation Delivery', pos: '82% center' },
+  { img: scaleImage, label: '05 / SCALE', tag: 'Growth Foundations & Optimization', pos: '80% center' },
 ]
 
 const methodAnchors = [
@@ -2033,7 +2039,7 @@ function PublicApp() {
             <path className="dash" d="M20 45C240 15 130 245 360 232C575 219 492 482 706 545" />
           </svg>
 
-          {/* Editorial Hover Information Panel */}
+          {/* Editorial Hover Image Visual — Image Only */}
           <div
             ref={floatingVisualRef}
             className="method-editorial-panel"
@@ -2041,38 +2047,18 @@ function PublicApp() {
             style={{ opacity: 0, pointerEvents: 'none' }}
           >
             {hoveredMethod !== null && (() => {
-              const stage = methodStages[hoveredMethod]
-              const image = methodVisuals[hoveredMethod].img
+              const visual = methodVisuals[hoveredMethod]
+              const image = visual.img
               return (
-                <div key={hoveredMethod} className="method-panel-grid">
-                  <div className="method-panel-media">
-                    <img
-                      ref={floatingImgRef}
-                      src={image}
-                      alt={stage.title}
-                      className="method-panel-img"
-                    />
-                    <div className="method-panel-wash" aria-hidden="true" />
-                    <span className="method-panel-badge">{stage.number} // THE ARCLANE METHOD</span>
-                  </div>
-                  <div className="method-panel-content">
-                    <div className="method-panel-head">
-                      <span className="method-panel-eyebrow">{stage.number} / {stage.title.toUpperCase()}</span>
-                      <h4 className="method-panel-title">{stage.title.toUpperCase()}</h4>
-                      <p className="method-panel-subtitle">{stage.subtitle}</p>
-                    </div>
-                    <p className="method-panel-desc">{stage.description}</p>
-                    <div className="method-panel-areas">
-                      <small>FOCUS AREAS</small>
-                      <ul>
-                        {stage.areas.map((area) => (
-                          <li key={area}>
-                            <span aria-hidden="true">—</span> {area}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
+                <div key={hoveredMethod} className="method-image-wrap">
+                  <img
+                    ref={floatingImgRef}
+                    src={image}
+                    alt=""
+                    className="method-panel-img"
+                    style={{ objectPosition: visual.pos || 'center' }}
+                  />
+                  <div className="method-panel-wash" aria-hidden="true" />
                 </div>
               )
             })()}
