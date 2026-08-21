@@ -16,16 +16,51 @@ export async function submitEnquiry(data: EnquiryInput) {
     throw configError
   }
 
-  const payload = {
+  const cleanData = {
     name: data.name.trim(),
-    work_email: data.workEmail.trim(),
+    workEmail: data.workEmail.trim(),
     company: data.company.trim(),
     phone: data.phone?.trim() || null,
-    focus_area: data.focusArea.trim(),
+    focusArea: data.focusArea.trim(),
     message: data.message.trim(),
   }
 
-  const { error, status, statusText } = await supabase.from('enquiries').insert(payload)
+  // 1. Preferred Flow: Existing Backend Edge Function (handles DB insert + Google Sheets server-side)
+  try {
+    const { data: funcData, error: funcError } = await supabase.functions.invoke('submit-enquiry', {
+      body: cleanData,
+    })
+
+    if (!funcError && funcData) {
+      if (funcData.success === false) {
+        throw new Error(funcData.error || 'Failed to process enquiry.')
+      }
+      return funcData
+    }
+
+    // If function returned an application error, rethrow
+    if (funcError && funcError.context?.status && funcError.context.status >= 400 && funcError.context.status !== 404) {
+      throw new Error(funcError.message || 'Submission failed on server.')
+    }
+  } catch (fnErr: unknown) {
+    // If the error was an intentional server validation / sync error, bubble it up
+    if (fnErr instanceof Error && fnErr.message !== 'Failed to send a request to the Edge Function' && !fnErr.message.includes('FunctionsFetchError') && !fnErr.message.includes('404')) {
+      throw fnErr
+    }
+    // Otherwise, fall back to direct DB insert
+  }
+
+  // 2. Direct Database Fallback (when Edge Function is not yet deployed)
+  const dbPayload = {
+    name: cleanData.name,
+    work_email: cleanData.workEmail,
+    company: cleanData.company,
+    phone: cleanData.phone,
+    focus_area: cleanData.focusArea,
+    message: cleanData.message,
+  }
+
+  const { error, status, statusText } = await supabase.from('enquiries').insert(dbPayload)
 
   if (error) {
     console.error('[Arclane enquiryService] Supabase insert failed:', {

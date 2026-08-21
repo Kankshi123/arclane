@@ -23,7 +23,11 @@ export function AdminLogin() {
     try {
       const { error: authError } = await signInWithEmailPassword(email, password)
       if (authError) {
-        setError(authError.message.toLowerCase().includes('invalid') ? 'Invalid credentials.' : 'Authentication error. Please try again.')
+        setError(
+          authError.message.toLowerCase().includes('invalid')
+            ? 'Invalid credentials.'
+            : 'Authentication error. Please try again.'
+        )
         return
       }
       window.location.replace('/admin')
@@ -35,80 +39,107 @@ export function AdminLogin() {
   }
 
   return (
-    <main className="admin-screen">
-      <div className="admin-bg" aria-hidden="true" />
+    <main className="admin-login-screen">
+      {/* Background Architectural Grid/Lines */}
+      <div className="admin-login-bg" aria-hidden="true">
+        <div className="admin-login-grid" />
+      </div>
 
-      <header className="admin-topbar">
+      {/* Top Bar */}
+      <header className="admin-login-topbar">
         <div className="admin-brand">
-          <span>ARCLANE</span>
-          <i aria-hidden="true" />
-          <em>ADMIN</em>
+          <a href="/" className="admin-wordmark" aria-label="Arclane Home">
+            ARCLANE <i className="admin-wordmark-accent">ADMIN</i>
+          </a>
         </div>
+        <a href="/" className="admin-back-link">
+          <span>← Return to website</span>
+        </a>
       </header>
 
+      {/* Centered Login Card */}
       <div className="admin-login-wrap">
-        <section className="admin-login" aria-label="Admin sign in">
-          <div className="admin-login-mark" aria-hidden="true">
-            <span />
-          </div>
-
+        <section className="admin-login-card" aria-label="Admin sign in">
           <div className="admin-login-head">
-            <p className="admin-eyebrow">Restricted access</p>
-            <h1>Sign in</h1>
-            <p>Authorized team members only.</p>
+            <div className="admin-login-meta-row">
+              <span className="admin-login-eyebrow">ARCLANE / ADMIN</span>
+              <span className="admin-restricted-pill">RESTRICTED ACCESS</span>
+            </div>
+            <h1 className="admin-login-title">Sign in</h1>
+            <p className="admin-login-subtext">Authorized team members and administrators only.</p>
           </div>
 
-          <form onSubmit={submit} noValidate>
-            <label className="admin-field">
-              Email
+          <form onSubmit={submit} noValidate className="admin-login-form">
+            <div className="admin-form-group">
+              <label htmlFor="admin-email" className="admin-form-label">
+                EMAIL ADDRESS <span className="admin-req-star">*</span>
+              </label>
               <input
+                id="admin-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                placeholder="Enter your email"
+                placeholder="name@arclaneglobal.com"
                 required
+                className="admin-form-input"
               />
-            </label>
+            </div>
 
-            <label className="admin-field">
-              Password
-              <div className="admin-password">
+            <div className="admin-form-group">
+              <div className="admin-form-label-row">
+                <label htmlFor="admin-password" className="admin-form-label">
+                  PASSWORD <span className="admin-req-star">*</span>
+                </label>
+              </div>
+              <div className="admin-password-wrapper">
                 <input
+                  id="admin-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
-                  placeholder="Enter your password"
+                  placeholder="Enter your admin password"
                   required
+                  className="admin-form-input admin-password-input"
                 />
                 <button
                   type="button"
-                  className="admin-password-toggle"
+                  className="admin-password-toggle-btn"
                   onClick={() => setShowPassword((current) => !current)}
                   aria-pressed={showPassword}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {showPassword ? 'HIDE' : 'SHOW'}
                 </button>
               </div>
-            </label>
+            </div>
 
             {error && (
-              <div className="admin-error" role="alert">
-                <strong>Authentication failed.</strong>
-                <span>{errorText}</span>
+              <div className="admin-error-box" role="alert">
+                <div className="admin-error-icon" aria-hidden="true">!</div>
+                <div className="admin-error-content">
+                  <strong>Authentication Failed</strong>
+                  <span>{errorText}</span>
+                </div>
               </div>
             )}
 
-            <button className="button admin-submit" type="submit" disabled={loading}>
-              {loading ? 'SIGNING IN…' : 'SIGN IN'} <span aria-hidden="true">→</span>
+            <button
+              className={`admin-login-submit-btn ${loading ? 'is-loading' : ''}`}
+              type="submit"
+              disabled={loading}
+            >
+              <span>{loading ? 'SIGNING IN…' : 'SIGN IN'}</span>
+              <span className="admin-btn-arrow" aria-hidden="true">→</span>
             </button>
           </form>
         </section>
       </div>
 
-      <footer className="admin-footer">© ARCLANE. All rights reserved.</footer>
+      <footer className="admin-login-footer">
+        <p>© ARCLANE GLOBAL · Internal Administration · Confidential</p>
+      </footer>
     </main>
   )
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion'
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion'
 import gsap from 'gsap'
 import { submitEnquiry } from './services/enquiryService'
 import { AdminLogin } from './pages/AdminLogin'
@@ -68,12 +68,22 @@ const solutionImages = [
 ]
 
 const capabilities = [
-  ['01', 'Strategy', 'Positioning, portfolio direction and decisive roadmaps.'],
-  ['02', 'Intelligence', 'Signals and insight that turn uncertainty into focus.'],
-  ['03', 'Technology', 'Connected platforms designed for meaningful advantage.'],
-  ['04', 'Transformation', 'Change made practical, deliberate and enduring.'],
-  ['05', 'Investment', 'A sharper view of value, opportunity and momentum.'],
-  ['06', 'Global growth', 'New pathways across markets, people and possibility.'],
+  ['01', 'Intelligent Automation', 'Systems that remove repetitive work, connect critical processes, and help teams operate with greater speed and precision.'],
+  ['02', 'Digital Experiences', 'Websites and digital platforms designed to communicate clearly, perform reliably, and turn attention into meaningful action.'],
+  ['03', 'Scalable Products', 'SaaS products built around real business needs, from the first working version to systems designed for long-term growth.'],
+  ['04', 'Cloud Infrastructure', 'Reliable cloud environments engineered for performance, flexibility, security, and the demands of modern operations.'],
+  ['05', 'Custom Engineering', 'Purpose-built software that solves specific business challenges and fits the way an organization actually works.'],
+  ['06', 'Performance Marketing', 'Data-driven marketing programs designed to acquire and activate customers through targeted campaigns, analytics and continuous optimization.']
+]
+
+const conversationServices = [
+  'Intelligent Automation',
+  'Digital Experiences',
+  'Scalable Products',
+  'Cloud Infrastructure',
+  'Custom Engineering',
+  'Growth Systems',
+  'Other',
 ]
 
 
@@ -1262,6 +1272,88 @@ function PublicApp() {
   const [selectedCaseStudy, setSelectedCaseStudy] = useState<CaseStudyProject | null>(null)
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null)
   const [hoveredMethod, setHoveredMethod] = useState<number | null>(null)
+  const [activeVisualIndex, setActiveVisualIndex] = useState<number | null>(null)
+
+  // Conversation Modal state
+  const [isConversationModalOpen, setIsConversationModalOpen] = useState(false)
+  const [cmName, setCmName] = useState('')
+  const [cmEmail, setCmEmail] = useState('')
+  const [cmCompany, setCmCompany] = useState('')
+  const [cmPhone, setCmPhone] = useState('')
+  const [cmService, setCmService] = useState('')
+  const [cmMessage, setCmMessage] = useState('')
+  const [cmErrors, setCmErrors] = useState<{ name?: string; email?: string; message?: string; form?: string }>({})
+  const [cmSubmitting, setCmSubmitting] = useState(false)
+  const [cmSent, setCmSent] = useState(false)
+
+  const openConversationModal = () => {
+    setIsConversationModalOpen(true)
+    setCmErrors({})
+  }
+
+  const closeConversationModal = () => {
+    setIsConversationModalOpen(false)
+  }
+
+  const resetAndCloseConversationModal = () => {
+    setIsConversationModalOpen(false)
+    setCmName('')
+    setCmEmail('')
+    setCmCompany('')
+    setCmPhone('')
+    setCmService('')
+    setCmMessage('')
+    setCmErrors({})
+    setCmSent(false)
+  }
+
+  const submitConversationModal = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setCmErrors({})
+    if (cmSubmitting) return
+
+    const errors: { name?: string; email?: string; message?: string; form?: string } = {}
+    const trimmedName = cmName.trim()
+    const trimmedEmail = cmEmail.trim()
+    const trimmedMessage = cmMessage.trim()
+
+    if (!trimmedName) {
+      errors.name = 'Full name is required.'
+    }
+
+    if (!trimmedEmail) {
+      errors.email = 'Work email is required.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      errors.email = 'Please enter a valid work email address.'
+    }
+
+    if (!trimmedMessage) {
+      errors.message = 'Message is required.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCmErrors(errors)
+      return
+    }
+
+    setCmSubmitting(true)
+    try {
+      await submitEnquiry({
+        name: trimmedName,
+        workEmail: trimmedEmail,
+        company: cmCompany.trim(),
+        phone: cmPhone.trim() || null,
+        focusArea: cmService || 'Other',
+        message: trimmedMessage,
+      })
+      setCmSent(true)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Submission failed. Please try again in a moment.'
+      setCmErrors({ form: msg })
+    } finally {
+      setCmSubmitting(false)
+    }
+  }
   const methodMapRef = useRef<HTMLDivElement | null>(null)
   const floatingVisualRef = useRef<HTMLDivElement | null>(null)
   const floatingImgRef = useRef<HTMLImageElement | null>(null)
@@ -1307,6 +1399,7 @@ function PublicApp() {
     if (!visual) return
 
     if (hoveredMethod !== null) {
+      setActiveVisualIndex(hoveredMethod)
       const pos = methodAnchors[hoveredMethod] || methodAnchors[0]
       gsap.killTweensOf(visual)
       if (img) gsap.killTweensOf(img)
@@ -1314,7 +1407,7 @@ function PublicApp() {
       gsap.to(visual, {
         top: pos.top,
         left: pos.left,
-        opacity: 1,
+        autoAlpha: 1,
         scale: 1,
         clipPath: 'inset(0% 0% 0% 0%)',
         duration: 0.55,
@@ -1330,11 +1423,14 @@ function PublicApp() {
       }
     } else {
       gsap.to(visual, {
-        opacity: 0,
+        autoAlpha: 0,
         scale: 0.94,
         clipPath: 'inset(8% 8% 8% 8%)',
         duration: 0.35,
         ease: 'power2.inOut',
+        onComplete: () => {
+          setActiveVisualIndex(null)
+        },
       })
     }
   }, [hoveredMethod])
@@ -1356,6 +1452,7 @@ function PublicApp() {
       if (event.key === 'Escape') {
         setMenu(false)
         closePreview()
+        setIsConversationModalOpen(false)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -1530,968 +1627,1217 @@ function PublicApp() {
 
   return (
     <>
-    <main>
-      <motion.header
-        ref={headerRef}
-        className={`nav ${scrolled ? 'is-scrolled' : ''}`}
-        initial={{ opacity: 0, y: -18 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <button className="wordmark" onClick={() => go('top')} aria-label="Back to top">
-          ARCLANE <i>GLOBAL</i>
-        </button>
-        <nav aria-label="Main navigation">
-          {[
-            { label: 'Capabilities', panel: 'capabilities' as const },
-            { label: 'Approach', panel: null },
-            { label: 'Industries', panel: 'industries' as const },
-            { label: 'Solutions', panel: 'solutions' as const },
-            { label: 'Insights', panel: null },
-            { label: 'About', panel: null },
-          ].map((item, i) => (
-            <motion.button
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.22 + i * 0.06, duration: 0.45 }}
-              key={item.label}
-              aria-expanded={item.panel ? desktopMenu === item.panel : undefined}
-              aria-controls={item.panel ? `${item.panel}-mega` : undefined}
-              className={desktopMenu === item.panel ? 'is-active-nav' : ''}
-              onMouseEnter={() => item.panel && openDesktopMenu(item.panel)}
-              onFocus={() => item.panel && openDesktopMenu(item.panel)}
-              onClick={() => (item.panel ? openDesktopMenu(item.panel) : go(item.label.toLowerCase()))}
-            >
-              {item.label}
-            </motion.button>
-          ))}
-        </nav>
-        <div className="nav-actions">
-          <button className="contact-link" onClick={() => go('contact')}>
-            Contact
-          </button>
-          <button className="button small" onClick={() => go('contact')}>
-            Start a conversation <Arrow />
-          </button>
-        </div>
-        <button className="menu-button" aria-label="Open menu" aria-expanded={menu} aria-controls="mobile-navigation" onClick={() => setMenu(!menu)}>
-          <span />
-          <span />
-        </button>
-      </motion.header>
-
-      <div ref={megaRef} className={`desktop-mega ${desktopMenu ? 'open' : ''}`} aria-hidden={!desktopMenu} onMouseLeave={() => setDesktopMenu(null)}>
-        {desktopMenu === 'capabilities' && (() => {
-          const selectedIndex = desktopSelection?.section === 'capabilities' ? desktopSelection.index : 0
-          const detail = capabilityDetails[selectedIndex] ?? capabilityDetails[0]
-          const image = capabilityImages[selectedIndex] ?? capabilityImages[0]
-
-          return (
-            <div className="mega-panel capabilities-mega" id="capabilities-mega">
-              <div className="mega-header">
-                <div>
-                  <p className="eyebrow">CAPABILITIES</p>
-                  <h3>What can Arclane do?</h3>
-                </div>
-                <span>{detail.number} / 08</span>
-              </div>
-              <div className="mega-split capabilities-split">
-                <div className="mega-list capabilities-list" role="listbox" aria-label="Capabilities list">
-                  {capabilityDetails.map((item, index) => (
-                    <button
-                      type="button"
-                      key={item.number}
-                      className={`mega-item ${selectedIndex === index ? 'is-selected' : ''}`}
-                      role="option"
-                      aria-selected={selectedIndex === index}
-                      onMouseEnter={() => setDesktopSelection({ section: 'capabilities', index })}
-                      onFocus={() => setDesktopSelection({ section: 'capabilities', index })}
-                      onClick={() => selectDesktopItem('capabilities', index)}
-                    >
-                      <span className="mega-item-num">{item.number}</span>
-                      <div className="mega-item-content">
-                        <strong className="mega-item-title">{item.title}</strong>
-                        <p className="mega-item-desc">{item.shortDescription}</p>
-                      </div>
-                      <Arrow />
-                    </button>
-                  ))}
-                </div>
-                <div className="mega-detail capabilities-detail has-detail">
-                  <button
-                    type="button"
-                    className="preview-close"
-                    onClick={closePreview}
-                    aria-label="Close preview"
-                  >
-                    CLOSE <span aria-hidden="true">×</span>
-                  </button>
-                  <div className="mega-detail-media">
-                    <img src={image} alt={detail.title} className="mega-detail-img" />
-                    <div className="mega-detail-wash" aria-hidden="true" />
-                    <span className="mega-detail-badge">ARCLANE // {detail.number}</span>
-                  </div>
-                  <div className="mega-detail-body">
-                    <div className="mega-detail-meta">
-                      <span className="mega-detail-num">{detail.number} — {detail.title.toUpperCase()}</span>
-                      <h4>{detail.shortDescription}</h4>
-                      <p>{detail.fullDescription}</p>
-                    </div>
-                    <div className="mega-detail-areas-wrap">
-                      <small>FOCUS AREAS</small>
-                      <div className="mega-areas">
-                        {detail.areas.map((area) => (
-                          <b key={area}>{area}</b>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {desktopMenu === 'industries' && (() => {
-          const selectedIndex = desktopSelection?.section === 'industries' ? desktopSelection.index : 0
-          const detail = industryDetails[selectedIndex] ?? industryDetails[0]
-          const image = industryImages[selectedIndex] ?? industryImages[0]
-
-          return (
-            <div className="mega-panel industries-mega" id="industries-mega">
-              <div className="mega-header">
-                <div>
-                  <p className="eyebrow">INDUSTRIES</p>
-                  <h3>Who does Arclane work with?</h3>
-                </div>
-                <span>{detail.number} / 08</span>
-              </div>
-              <div className="mega-split industries-split">
-                <div className="mega-list industries-list" role="listbox" aria-label="Industries list">
-                  {industryDetails.map((item, index) => (
-                    <button
-                      type="button"
-                      key={item.number}
-                      className={`mega-row-horizontal ${selectedIndex === index ? 'is-selected' : ''}`}
-                      role="option"
-                      aria-selected={selectedIndex === index}
-                      onMouseEnter={() => setDesktopSelection({ section: 'industries', index })}
-                      onFocus={() => setDesktopSelection({ section: 'industries', index })}
-                      onClick={() => selectDesktopItem('industries', index)}
-                    >
-                      <span className="mega-row-num">{item.number}</span>
-                      <div className="mega-row-main">
-                        <strong className="mega-row-title">{item.title}</strong>
-                        <span className="mega-row-preview">{item.shortDescription}</span>
-                      </div>
-                      <Arrow />
-                    </button>
-                  ))}
-                </div>
-                <div className="mega-detail industries-detail has-detail">
-                  <button
-                    type="button"
-                    className="preview-close"
-                    onClick={closePreview}
-                    aria-label="Close preview"
-                  >
-                    CLOSE <span aria-hidden="true">×</span>
-                  </button>
-                  <div className="mega-detail-media">
-                    <img src={image} alt={detail.title} className="mega-detail-img" />
-                    <div className="mega-detail-wash" aria-hidden="true" />
-                    <span className="mega-detail-badge">SECTOR // {detail.number}</span>
-                  </div>
-                  <div className="mega-detail-body">
-                    <div className="mega-detail-meta">
-                      <span className="mega-detail-num">{detail.number} — {detail.title.toUpperCase()}</span>
-                      <h4>{detail.shortDescription}</h4>
-                      <p>{detail.fullDescription}</p>
-                    </div>
-                    <div className="mega-detail-areas-wrap">
-                      <small>INDUSTRY FOCUS</small>
-                      <div className="mega-areas">
-                        {detail.areas.map((area) => (
-                          <b key={area}>{area}</b>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {desktopMenu === 'solutions' && (() => {
-          const selectedIndex = desktopSelection?.section === 'solutions' ? desktopSelection.index : 0
-          const detail = solutionDetails[selectedIndex] ?? solutionDetails[0]
-          const image = solutionImages[selectedIndex] ?? solutionImages[0]
-
-          return (
-            <div className="mega-panel solutions-mega" id="solutions-mega">
-              <div className="mega-header">
-                <div>
-                  <p className="eyebrow">SOLUTIONS</p>
-                  <h3>What business problems can Arclane solve?</h3>
-                </div>
-                <span>{detail.number} / 07</span>
-              </div>
-              <div className="mega-split solutions-split">
-                <div className="mega-list solutions-list" role="listbox" aria-label="Solutions problem explorer">
-                  {solutionDetails.map((item, index) => {
-                    const isExpanded = selectedIndex === index
-                    return (
-                      <div
-                        key={item.number}
-                        className={`problem-explorer-item ${isExpanded ? 'is-expanded' : ''}`}
-                        onMouseEnter={() => setDesktopSelection({ section: 'solutions', index })}
-                        onFocus={() => setDesktopSelection({ section: 'solutions', index })}
-                        onClick={() => selectDesktopItem('solutions', index)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            selectDesktopItem('solutions', index)
-                          }
-                        }}
-                      >
-                        <div className="problem-explorer-head">
-                          <span className="problem-explorer-num">{item.number}</span>
-                          <div className="problem-explorer-titles">
-                            <strong className="problem-explorer-title">{item.title}</strong>
-                            <span className="problem-explorer-subtitle">{item.shortDescription}</span>
-                          </div>
-                          <Arrow />
-                        </div>
-                        {isExpanded && (
-                          <div className="problem-explorer-inline-desc">
-                            <p>{item.fullDescription}</p>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="mega-detail solutions-detail has-detail">
-                  <button
-                    type="button"
-                    className="preview-close"
-                    onClick={closePreview}
-                    aria-label="Close preview"
-                  >
-                    CLOSE <span aria-hidden="true">×</span>
-                  </button>
-                  <div className="mega-detail-media">
-                    <img src={image} alt={detail.title} className="mega-detail-img" />
-                    <div className="mega-detail-wash" aria-hidden="true" />
-                    <span className="mega-detail-badge">SOLUTION // {detail.number}</span>
-                  </div>
-                  <div className="mega-detail-body">
-                    <div className="mega-detail-meta">
-                      <span className="mega-detail-num">{detail.number} — {detail.title.toUpperCase()}</span>
-                      <h4>{detail.shortDescription}</h4>
-                      <p>{detail.fullDescription}</p>
-                    </div>
-                    <div className="mega-detail-areas-wrap">
-                      <small>SUPPORTED OUTCOMES</small>
-                      <div className="mega-areas">
-                        {detail.areas.map((area) => (
-                          <b key={area}>{area}</b>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        })()}
-      </div>
-      <div id="mobile-navigation" className={`mobile-menu ${menu ? 'open' : ''}`}>
-          <button type="button" className="mobile-accordion" aria-expanded={mobilePanel === 'capabilities'} onClick={() => setMobilePanel(mobilePanel === 'capabilities' ? null : 'capabilities')}>
-          <span>CAPABILITIES</span>
-          <Arrow />
-        </button>
-        <div className={`mobile-panel ${mobilePanel === 'capabilities' ? 'open' : ''}`}>
-          {capabilityDetails.map((item, index) => (
-            <button type="button"
-              key={item.number}
-              className={mobileSelection.capabilities === index ? 'is-selected' : ''}
-              aria-pressed={mobileSelection.capabilities === index}
-              onClick={() => selectMobileItem('capabilities', index)}
-            >
-              <span>{item.number}</span>
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.shortDescription}</p>
-              </div>
-            </button>
-          ))}
-          {mobilePanel === 'capabilities' && mobileSelection.capabilities !== null && (() => {
-            const detail = mobileDetail('capabilities', mobileSelection.capabilities ?? 0)
-            return (
-              <div className="mobile-detail">
-                <h4>{detail.shortDescription}</h4>
-                <p>{detail.fullDescription}</p>
-                <small>FOCUS AREAS</small>
-                <div className="mobile-areas">{detail.areas.map((area) => <b key={area}>{area}</b>)}</div>
-              </div>
-            )
-          })()}
-        </div>
-
-        <button type="button" className="mobile-accordion direct" onClick={() => go('approach')}>
-          <span>APPROACH</span>
-          <Arrow />
-        </button>
-
-        <button type="button" className="mobile-accordion" aria-expanded={mobilePanel === 'industries'} onClick={() => setMobilePanel(mobilePanel === 'industries' ? null : 'industries')}>
-          <span>INDUSTRIES</span>
-          <Arrow />
-        </button>
-        <div className={`mobile-panel ${mobilePanel === 'industries' ? 'open' : ''}`}>
-          {industryDetails.map((item, index) => (
-            <button type="button"
-              key={item.number}
-              className={mobileSelection.industries === index ? 'is-selected' : ''}
-              aria-pressed={mobileSelection.industries === index}
-              onClick={() => selectMobileItem('industries', index)}
-            >
-              <span>{item.number}</span>
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.shortDescription}</p>
-              </div>
-            </button>
-          ))}
-          {mobilePanel === 'industries' && mobileSelection.industries !== null && (() => {
-            const detail = mobileDetail('industries', mobileSelection.industries ?? 0)
-            return (
-              <div className="mobile-detail">
-                <h4>{detail.shortDescription}</h4>
-                <p>{detail.fullDescription}</p>
-                <small>INDUSTRY FOCUS</small>
-                <div className="mobile-areas">{detail.areas.map((area) => <b key={area}>{area}</b>)}</div>
-              </div>
-            )
-          })()}
-        </div>
-
-        <button type="button" className="mobile-accordion" aria-expanded={mobilePanel === 'solutions'} onClick={() => setMobilePanel(mobilePanel === 'solutions' ? null : 'solutions')}>
-          <span>SOLUTIONS</span>
-          <Arrow />
-        </button>
-        <div className={`mobile-panel ${mobilePanel === 'solutions' ? 'open' : ''}`}>
-          {solutionDetails.map((item, index) => (
-            <button type="button"
-              key={item.number}
-              className={mobileSelection.solutions === index ? 'is-selected' : ''}
-              aria-pressed={mobileSelection.solutions === index}
-              onClick={() => selectMobileItem('solutions', index)}
-            >
-              <span>{item.number}</span>
-              <div>
-                <strong>{item.title}</strong>
-                <p>{item.shortDescription}</p>
-              </div>
-            </button>
-          ))}
-          {mobilePanel === 'solutions' && mobileSelection.solutions !== null && (() => {
-            const detail = mobileDetail('solutions', mobileSelection.solutions ?? 0)
-            return (
-              <div className="mobile-detail">
-                <h4>{detail.shortDescription}</h4>
-                <p>{detail.fullDescription}</p>
-                <small>SUPPORTED OUTCOMES</small>
-                <div className="mobile-areas">{detail.areas.map((area) => <b key={area}>{area}</b>)}</div>
-              </div>
-            )
-          })()}
-        </div>
-
-        {['Insights', 'About', 'Contact'].map((x) => (
-          <button type="button" key={x} className="mobile-accordion direct" onClick={() => go(x.toLowerCase())}>
-            <span>{x.toUpperCase()}</span>
-            <Arrow />
-          </button>
-        ))}
-        <button type="button" className="button mobile-cta" onClick={() => go('contact')}>
-          Start a conversation <Arrow />
-        </button>
-      </div>
-      <section id="top" className="hero" ref={heroRef}>
-        <video
-          className="hero-background-video"
-          autoPlay
-          muted
-          loop
-          playsInline
-          aria-hidden="true"
-          tabIndex={-1}
+      <main>
+        <motion.header
+          ref={headerRef}
+          className={`nav ${scrolled ? 'is-scrolled' : ''}`}
+          initial={{ opacity: 0, y: -18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
         >
-          <source src={heroBackgroundVideo} type="video/mp4" />
-        </video>
-        <div className="hero-background-overlay" aria-hidden="true" />
-        <div className="hero-copy">
-          <motion.p className="eyebrow" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.6 }}>
-            ARCLANE GLOBAL / STRATEGIC PARTNERS
-          </motion.p>
-          <motion.h1 initial="hidden" animate="show" transition={{ staggerChildren: 0.12, delayChildren: 0.38 }}>
-            <span className="headline-line">
-              <motion.span variants={{ hidden: { opacity: 0, y: '105%' }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 58, damping: 19 } } }}>
-                WHERE
-              </motion.span>
-            </span>
-            <span className="headline-line">
-              <motion.em variants={{ hidden: { opacity: 0, y: '105%' }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 58, damping: 19 } } }}>
-                COMPLEXITY
-              </motion.em>
-            </span>
-            <span className="headline-line">
-              <motion.span variants={{ hidden: { opacity: 0, y: '105%' }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 58, damping: 19 } } }}>
-                MEETS CLARITY.
-              </motion.span>
-            </span>
-          </motion.h1>
-          <motion.p className="lead" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.88, duration: 0.65 }}>
-            Strategy, intelligence and execution for organizations moving toward what comes next.
-          </motion.p>
-          <motion.div className="hero-cta" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.02, duration: 0.55 }}>
-            <button className="button" onClick={() => go('contact')}>
+          <button className="wordmark" onClick={() => go('top')} aria-label="Back to top">
+            ARCLANE <i>GLOBAL</i>
+          </button>
+          <nav aria-label="Main navigation">
+            {[
+              { label: 'Capabilities', panel: 'capabilities' as const },
+              { label: 'Approach', panel: null },
+              { label: 'Industries', panel: 'industries' as const },
+              { label: 'Solutions', panel: 'solutions' as const },
+              { label: 'Insights', panel: null },
+              { label: 'About', panel: null },
+            ].map((item, i) => (
+              <motion.button
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.22 + i * 0.06, duration: 0.45 }}
+                key={item.label}
+                aria-expanded={item.panel ? desktopMenu === item.panel : undefined}
+                aria-controls={item.panel ? `${item.panel}-mega` : undefined}
+                className={desktopMenu === item.panel ? 'is-active-nav' : ''}
+                onMouseEnter={() => item.panel && openDesktopMenu(item.panel)}
+                onFocus={() => item.panel && openDesktopMenu(item.panel)}
+                onClick={() => (item.panel ? openDesktopMenu(item.panel) : go(item.label.toLowerCase()))}
+              >
+                {item.label}
+              </motion.button>
+            ))}
+          </nav>
+          <div className="nav-actions">
+            <button className="contact-link" onClick={() => go('contact')}>
+              Contact
+            </button>
+            <button className="button small" onClick={openConversationModal}>
               Start a conversation <Arrow />
             </button>
-            <button className="text-link" onClick={() => go('approach')}>
-              Explore our approach <Arrow />
-            </button>
-          </motion.div>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.18, duration: 0.7 }}>
-            <HeroRail
-              activeIndex={strategyIndex}
-              paused={strategyPaused || railPaused}
-              reducedMotion={Boolean(reduceMotion)}
-              onItemEnter={pauseStrategy}
-              onItemLeave={scheduleStrategyResume}
-              onRailEnter={() => setRailPaused(true)}
-              onRailLeave={() => setRailPaused(false)}
-            />
-          </motion.div>
-        </div>
-      </section>
+          </div>
+          <button className="menu-button" aria-label="Open menu" aria-expanded={menu} aria-controls="mobile-navigation" onClick={() => setMenu(!menu)}>
+            <span />
+            <span />
+          </button>
+        </motion.header>
 
-      <motion.section className="statement" {...reveal}>
-        <div className="statement-copy">
-          <p className="eyebrow">OUR POINT OF VIEW</p>
-          <h2>Turning complexity into direction.</h2>
-          <p>From strategic decisions to transformation programs, we help organizations create a clearer path from where they are to where they need to be.</p>
-        </div>
-        <div className="statement-image">
-          <img src={workImage1} alt="Business leaders in a modern meeting room overlooking a city skyline" />
-        </div>
-      </motion.section>
+        <div ref={megaRef} className={`desktop-mega ${desktopMenu ? 'open' : ''}`} aria-hidden={!desktopMenu} onMouseLeave={() => setDesktopMenu(null)}>
+          {desktopMenu === 'capabilities' && (() => {
+            const selectedIndex = desktopSelection?.section === 'capabilities' ? desktopSelection.index : 0
+            const detail = capabilityDetails[selectedIndex] ?? capabilityDetails[0]
+            const image = capabilityImages[selectedIndex] ?? capabilityImages[0]
 
-      <section id="capabilities" className="section capabilities">
-        <div className="section-intro">
-          <p className="eyebrow">01 / CAPABILITIES</p>
-          <h2>
-            WHAT WE
-            <br />
-            BUILD.
-          </h2>
-        </div>
-        <div className="cap-list">
-          {capabilities.map(([n, t, d]) => (
-            <article
-              className="cap"
-              key={n}
-              tabIndex={0}
-              role="region"
-              aria-label={`${n} ${t}`}
-            >
-              <span>{n}</span>
-              <h3>{t}</h3>
-              <p>{d}</p>
-              <div className="cap-mark" aria-hidden="true">↗</div>
-            </article>
-          ))}
-        </div>
-      </section>
+            return (
+              <div className="mega-panel capabilities-mega" id="capabilities-mega">
+                <div className="mega-header">
+                  <div>
+                    <p className="eyebrow">CAPABILITIES</p>
+                    <h3>What can Arclane do?</h3>
+                  </div>
+                  <span>{detail.number} / 08</span>
+                </div>
+                <div className="mega-split capabilities-split">
+                  <div className="mega-list capabilities-list" role="listbox" aria-label="Capabilities list">
+                    {capabilityDetails.map((item, index) => (
+                      <button
+                        type="button"
+                        key={item.number}
+                        className={`mega-item ${selectedIndex === index ? 'is-selected' : ''}`}
+                        role="option"
+                        aria-selected={selectedIndex === index}
+                        onMouseEnter={() => setDesktopSelection({ section: 'capabilities', index })}
+                        onFocus={() => setDesktopSelection({ section: 'capabilities', index })}
+                        onClick={() => selectDesktopItem('capabilities', index)}
+                      >
+                        <span className="mega-item-num">{item.number}</span>
+                        <div className="mega-item-content">
+                          <strong className="mega-item-title">{item.title}</strong>
+                          <p className="mega-item-desc">{item.shortDescription}</p>
+                        </div>
+                        <Arrow />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mega-detail capabilities-detail has-detail">
+                    <button
+                      type="button"
+                      className="preview-close"
+                      onClick={closePreview}
+                      aria-label="Close preview"
+                    >
+                      CLOSE <span aria-hidden="true">×</span>
+                    </button>
+                    <div className="mega-detail-media">
+                      <img src={image} alt={detail.title} className="mega-detail-img" />
+                      <div className="mega-detail-wash" aria-hidden="true" />
+                      <span className="mega-detail-badge">ARCLANE // {detail.number}</span>
+                    </div>
+                    <div className="mega-detail-body">
+                      <div className="mega-detail-meta">
+                        <span className="mega-detail-num">{detail.number} — {detail.title.toUpperCase()}</span>
+                        <h4>{detail.shortDescription}</h4>
+                        <p>{detail.fullDescription}</p>
+                      </div>
+                      <div className="mega-detail-areas-wrap">
+                        <small>FOCUS AREAS</small>
+                        <div className="mega-areas">
+                          {detail.areas.map((area) => (
+                            <b key={area}>{area}</b>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
-      <section id="approach" className="method">
-        <div>
-          <p className="eyebrow">02 / OUR APPROACH</p>
-          <h2>
-            THE ARCLANE
-            <br />
-            METHOD.
-          </h2>
-          <p className="lead">A disciplined way to turn moving parts into a clear, compounding direction.</p>
-        </div>
-        <div
-          ref={methodMapRef}
-          className="method-map"
-          onMouseMove={handleMethodMouseMove}
-          onMouseLeave={() => setHoveredMethod(null)}
-        >
-          <svg ref={pathSvgRef} viewBox="0 0 720 600" preserveAspectRatio="none">
-            <path d="M20 45C240 15 130 245 360 232C575 219 492 482 706 545" />
-            <path className="dash" d="M20 45C240 15 130 245 360 232C575 219 492 482 706 545" />
-          </svg>
+          {desktopMenu === 'industries' && (() => {
+            const selectedIndex = desktopSelection?.section === 'industries' ? desktopSelection.index : 0
+            const detail = industryDetails[selectedIndex] ?? industryDetails[0]
+            const image = industryImages[selectedIndex] ?? industryImages[0]
 
-          {/* Editorial Hover Image Visual — Image Only */}
-          <div
-            ref={floatingVisualRef}
-            className="method-editorial-panel"
-            aria-hidden={hoveredMethod === null}
-            style={{ opacity: 0, pointerEvents: 'none' }}
-          >
-            {hoveredMethod !== null && (() => {
-              const visual = methodVisuals[hoveredMethod]
-              const image = visual.img
+            return (
+              <div className="mega-panel industries-mega" id="industries-mega">
+                <div className="mega-header">
+                  <div>
+                    <p className="eyebrow">INDUSTRIES</p>
+                    <h3>Who does Arclane work with?</h3>
+                  </div>
+                  <span>{detail.number} / 08</span>
+                </div>
+                <div className="mega-split industries-split">
+                  <div className="mega-list industries-list" role="listbox" aria-label="Industries list">
+                    {industryDetails.map((item, index) => (
+                      <button
+                        type="button"
+                        key={item.number}
+                        className={`mega-row-horizontal ${selectedIndex === index ? 'is-selected' : ''}`}
+                        role="option"
+                        aria-selected={selectedIndex === index}
+                        onMouseEnter={() => setDesktopSelection({ section: 'industries', index })}
+                        onFocus={() => setDesktopSelection({ section: 'industries', index })}
+                        onClick={() => selectDesktopItem('industries', index)}
+                      >
+                        <span className="mega-row-num">{item.number}</span>
+                        <div className="mega-row-main">
+                          <strong className="mega-row-title">{item.title}</strong>
+                          <span className="mega-row-preview">{item.shortDescription}</span>
+                        </div>
+                        <Arrow />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mega-detail industries-detail has-detail">
+                    <button
+                      type="button"
+                      className="preview-close"
+                      onClick={closePreview}
+                      aria-label="Close preview"
+                    >
+                      CLOSE <span aria-hidden="true">×</span>
+                    </button>
+                    <div className="mega-detail-media">
+                      <img src={image} alt={detail.title} className="mega-detail-img" />
+                      <div className="mega-detail-wash" aria-hidden="true" />
+                      <span className="mega-detail-badge">SECTOR // {detail.number}</span>
+                    </div>
+                    <div className="mega-detail-body">
+                      <div className="mega-detail-meta">
+                        <span className="mega-detail-num">{detail.number} — {detail.title.toUpperCase()}</span>
+                        <h4>{detail.shortDescription}</h4>
+                        <p>{detail.fullDescription}</p>
+                      </div>
+                      <div className="mega-detail-areas-wrap">
+                        <small>INDUSTRY FOCUS</small>
+                        <div className="mega-areas">
+                          {detail.areas.map((area) => (
+                            <b key={area}>{area}</b>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {desktopMenu === 'solutions' && (() => {
+            const selectedIndex = desktopSelection?.section === 'solutions' ? desktopSelection.index : 0
+            const detail = solutionDetails[selectedIndex] ?? solutionDetails[0]
+            const image = solutionImages[selectedIndex] ?? solutionImages[0]
+
+            return (
+              <div className="mega-panel solutions-mega" id="solutions-mega">
+                <div className="mega-header">
+                  <div>
+                    <p className="eyebrow">SOLUTIONS</p>
+                    <h3>What business problems can Arclane solve?</h3>
+                  </div>
+                  <span>{detail.number} / 07</span>
+                </div>
+                <div className="mega-split solutions-split">
+                  <div className="mega-list solutions-list" role="listbox" aria-label="Solutions problem explorer">
+                    {solutionDetails.map((item, index) => {
+                      const isExpanded = selectedIndex === index
+                      return (
+                        <div
+                          key={item.number}
+                          className={`problem-explorer-item ${isExpanded ? 'is-expanded' : ''}`}
+                          onMouseEnter={() => setDesktopSelection({ section: 'solutions', index })}
+                          onFocus={() => setDesktopSelection({ section: 'solutions', index })}
+                          onClick={() => selectDesktopItem('solutions', index)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              selectDesktopItem('solutions', index)
+                            }
+                          }}
+                        >
+                          <div className="problem-explorer-head">
+                            <span className="problem-explorer-num">{item.number}</span>
+                            <div className="problem-explorer-titles">
+                              <strong className="problem-explorer-title">{item.title}</strong>
+                              <span className="problem-explorer-subtitle">{item.shortDescription}</span>
+                            </div>
+                            <Arrow />
+                          </div>
+                          {isExpanded && (
+                            <div className="problem-explorer-inline-desc">
+                              <p>{item.fullDescription}</p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="mega-detail solutions-detail has-detail">
+                    <button
+                      type="button"
+                      className="preview-close"
+                      onClick={closePreview}
+                      aria-label="Close preview"
+                    >
+                      CLOSE <span aria-hidden="true">×</span>
+                    </button>
+                    <div className="mega-detail-media">
+                      <img src={image} alt={detail.title} className="mega-detail-img" />
+                      <div className="mega-detail-wash" aria-hidden="true" />
+                      <span className="mega-detail-badge">SOLUTION // {detail.number}</span>
+                    </div>
+                    <div className="mega-detail-body">
+                      <div className="mega-detail-meta">
+                        <span className="mega-detail-num">{detail.number} — {detail.title.toUpperCase()}</span>
+                        <h4>{detail.shortDescription}</h4>
+                        <p>{detail.fullDescription}</p>
+                      </div>
+                      <div className="mega-detail-areas-wrap">
+                        <small>SUPPORTED OUTCOMES</small>
+                        <div className="mega-areas">
+                          {detail.areas.map((area) => (
+                            <b key={area}>{area}</b>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+        <div id="mobile-navigation" className={`mobile-menu ${menu ? 'open' : ''}`}>
+          <button type="button" className="mobile-accordion" aria-expanded={mobilePanel === 'capabilities'} onClick={() => setMobilePanel(mobilePanel === 'capabilities' ? null : 'capabilities')}>
+            <span>CAPABILITIES</span>
+            <Arrow />
+          </button>
+          <div className={`mobile-panel ${mobilePanel === 'capabilities' ? 'open' : ''}`}>
+            {capabilityDetails.map((item, index) => (
+              <button type="button"
+                key={item.number}
+                className={mobileSelection.capabilities === index ? 'is-selected' : ''}
+                aria-pressed={mobileSelection.capabilities === index}
+                onClick={() => selectMobileItem('capabilities', index)}
+              >
+                <span>{item.number}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.shortDescription}</p>
+                </div>
+              </button>
+            ))}
+            {mobilePanel === 'capabilities' && mobileSelection.capabilities !== null && (() => {
+              const detail = mobileDetail('capabilities', mobileSelection.capabilities ?? 0)
               return (
-                <div key={hoveredMethod} className="method-image-wrap">
-                  <img
-                    ref={floatingImgRef}
-                    src={image}
-                    alt=""
-                    className="method-panel-img"
-                    style={{ objectPosition: visual.pos || 'center' }}
-                  />
-                  <div className="method-panel-wash" aria-hidden="true" />
+                <div className="mobile-detail">
+                  <h4>{detail.shortDescription}</h4>
+                  <p>{detail.fullDescription}</p>
+                  <small>FOCUS AREAS</small>
+                  <div className="mobile-areas">{detail.areas.map((area) => <b key={area}>{area}</b>)}</div>
                 </div>
               )
             })()}
           </div>
 
-          {methodStages.map((stage, i) => {
-            const isHovered = hoveredMethod === i
-            const isDimmed = hoveredMethod !== null && !isHovered
-            return (
-              <motion.article
-                className={`stage stage-${i} ${isHovered ? 'is-hovered' : ''} ${isDimmed ? 'is-dimmed' : ''}`}
-                key={stage.number}
-                {...reveal}
-                role="button"
-                tabIndex={0}
-                aria-label={`Stage ${stage.number}: ${stage.title}`}
-                onMouseEnter={() => setHoveredMethod(i)}
-                onFocus={() => setHoveredMethod(i)}
-                onClick={() => setHoveredMethod((prev) => (prev === i ? null : i))}
+          <button type="button" className="mobile-accordion direct" onClick={() => go('approach')}>
+            <span>APPROACH</span>
+            <Arrow />
+          </button>
+
+          <button type="button" className="mobile-accordion" aria-expanded={mobilePanel === 'industries'} onClick={() => setMobilePanel(mobilePanel === 'industries' ? null : 'industries')}>
+            <span>INDUSTRIES</span>
+            <Arrow />
+          </button>
+          <div className={`mobile-panel ${mobilePanel === 'industries' ? 'open' : ''}`}>
+            {industryDetails.map((item, index) => (
+              <button type="button"
+                key={item.number}
+                className={mobileSelection.industries === index ? 'is-selected' : ''}
+                aria-pressed={mobileSelection.industries === index}
+                onClick={() => selectMobileItem('industries', index)}
               >
-                <span>{stage.number}</span>
-                <h3>{stage.title}</h3>
-                <p>{stage.subtitle}</p>
-              </motion.article>
-            )
-          })}
-        </div>
-      </section>
+                <span>{item.number}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.shortDescription}</p>
+                </div>
+              </button>
+            ))}
+            {mobilePanel === 'industries' && mobileSelection.industries !== null && (() => {
+              const detail = mobileDetail('industries', mobileSelection.industries ?? 0)
+              return (
+                <div className="mobile-detail">
+                  <h4>{detail.shortDescription}</h4>
+                  <p>{detail.fullDescription}</p>
+                  <small>INDUSTRY FOCUS</small>
+                  <div className="mobile-areas">{detail.areas.map((area) => <b key={area}>{area}</b>)}</div>
+                </div>
+              )
+            })()}
+          </div>
 
-      <section className="network">
-        <img className="network-image" src={globalMindsetImage} alt="Global city skyline at sunset" />
-        <div className="network-image-wash" aria-hidden="true" />
-        <div>
-          <p className="eyebrow">03 / GLOBAL MINDSET</p>
-          <motion.h2 className="network-heading">
-            <motion.span
-              initial={reduceMotion ? false : { opacity: 0, y: 35 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.35 }}
-              transition={{ duration: 1.35, ease: [0.22, 1, 0.36, 1] }}
-            >
-              BUILT FOR A WORLD
-            </motion.span>
-            <motion.span
-              initial={reduceMotion ? false : { opacity: 0, y: 35 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.35 }}
-              transition={{ duration: 1.35, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            >
-              WITHOUT BORDERS.
-            </motion.span>
-          </motion.h2>
-          <p>Ideas, capital, technology and opportunity move differently now. We create the connections that let them travel farther.</p>
-        </div>
-        <Pathway dark focusIndex={strategyIndex} pulseKey={pulseKey} />
-        <div className="network-stats">
-          <motion.span
-            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.45 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-          >
-            07 <small>focus markets</small>
-          </motion.span>
-          <motion.span
-            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.45 }}
-            transition={{ duration: 0.7, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-          >
-            24/7 <small>connected thinking</small>
-          </motion.span>
-          <motion.span
-            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.45 }}
-            transition={{ duration: 0.7, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
-          >
-            01 <small>shared direction</small>
-          </motion.span>
-        </div>
-      </section>
+          <button type="button" className="mobile-accordion" aria-expanded={mobilePanel === 'solutions'} onClick={() => setMobilePanel(mobilePanel === 'solutions' ? null : 'solutions')}>
+            <span>SOLUTIONS</span>
+            <Arrow />
+          </button>
+          <div className={`mobile-panel ${mobilePanel === 'solutions' ? 'open' : ''}`}>
+            {solutionDetails.map((item, index) => (
+              <button type="button"
+                key={item.number}
+                className={mobileSelection.solutions === index ? 'is-selected' : ''}
+                aria-pressed={mobileSelection.solutions === index}
+                onClick={() => selectMobileItem('solutions', index)}
+              >
+                <span>{item.number}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.shortDescription}</p>
+                </div>
+              </button>
+            ))}
+            {mobilePanel === 'solutions' && mobileSelection.solutions !== null && (() => {
+              const detail = mobileDetail('solutions', mobileSelection.solutions ?? 0)
+              return (
+                <div className="mobile-detail">
+                  <h4>{detail.shortDescription}</h4>
+                  <p>{detail.fullDescription}</p>
+                  <small>SUPPORTED OUTCOMES</small>
+                  <div className="mobile-areas">{detail.areas.map((area) => <b key={area}>{area}</b>)}</div>
+                </div>
+              )
+            })()}
+          </div>
 
-      <section id="industries" className="section industries">
-        <p className="eyebrow">04 / INDUSTRIES</p>
-        <h2>
-          WHERE WE
-          <br />
-          CREATE IMPACT.
-        </h2>
-        <div className="industry-list">
-          {industries.map((x, i) => (
-            <button
-              type="button"
-              key={x}
-              className="industry-item"
-            >
-              <span>0{i + 1}</span>
-              {x}
+          {['Insights', 'About', 'Contact'].map((x) => (
+            <button type="button" key={x} className="mobile-accordion direct" onClick={() => go(x.toLowerCase())}>
+              <span>{x.toUpperCase()}</span>
               <Arrow />
             </button>
           ))}
-        </div>
-      </section>
-
-      <section className="work">
-        <p className="eyebrow">05 / SELECTED WORK</p>
-        <h2>
-          THOUGHTFUL WORK.
-          <br />
-          CLEAR OUTCOMES.
-        </h2>
-        <div className="work-grid">
-          {caseStudyProjects.map((proj, i) => (
-            <ProjectCard
-              key={proj.id}
-              project={proj}
-              index={i}
-              onOpenCaseStudy={(p) => setSelectedCaseStudy(p)}
-            />
-          ))}
-        </div>
-        
-      </section>
-
-      <section id="insights" className="section insights">
-        <div>
-          <p className="eyebrow">06 / INSIGHTS</p>
-          <h2>
-            THINKING FOR
-            <br />
-            WHAT COMES NEXT.
-          </h2>
-        </div>
-        <div className="articles">
-          {insights.map((insight) => (
-            <InsightRow
-              key={insight.id}
-              insight={insight}
-              onSelect={(item) => setSelectedInsight(item)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section id="about" className="about">
-        <p className="eyebrow">07 / ABOUT ARCLANE</p>
-        <h2>
-          WE CONNECT THE
-          <br />
-          PIECES THAT MOVE
-          <br />
-          <span>BUSINESSES FORWARD.</span>
-        </h2>
-        <div className="about-media">
-          <img src={aboutImage} alt="Arclane Global team walking through a modern office corridor" />
-        </div>
-        <div className="about-bottom">
-          <p>Arclane Global brings together strategic thinking, intelligence, technology and execution to help organizations move with greater clarity and confidence.</p>
-          <div>
-            <b>VISION</b>
-            <span>Long-term advantage</span>
-            <b>PHILOSOPHY</b>
-            <span>Clarity creates momentum</span>
-            <b>GLOBAL MINDSET</b>
-            <span>Local context, shared ambition</span>
-          </div>
-        </div>
-      </section>
-
-      <section id="contact" className="contact">
-        <Pathway dark />
-        <div className="contact-inner">
-          {/* LEFT COLUMN — Intro */}
-          <motion.div
-            className="contact-left"
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          <button
+            type="button"
+            className="button mobile-cta"
+            onClick={() => {
+              setMenu(false)
+              openConversationModal()
+            }}
           >
-            <p className="eyebrow">08 / CONTACT</p>
-            <h2 className="contact-headline">
-              LET&apos;S BUILD
-              <br />
-              WHAT COMES
-              <br />
-              NEXT.
-            </h2>
-            <motion.p
-              className="contact-sub"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            >
-              Tell us what you&apos;re working through.<br />We&apos;ll find the right starting point.
+            Start a conversation <Arrow />
+          </button>
+        </div>
+        <section id="top" className="hero" ref={heroRef}>
+          <video
+            className="hero-background-video"
+            autoPlay
+            muted
+            loop
+            playsInline
+            aria-hidden="true"
+            tabIndex={-1}
+          >
+            <source src={heroBackgroundVideo} type="video/mp4" />
+          </video>
+          <div className="hero-background-overlay" aria-hidden="true" />
+          <div className="hero-copy">
+            <motion.p className="eyebrow" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28, duration: 0.6 }}>
+              ARCLANE GLOBAL / STRATEGIC PARTNERS
             </motion.p>
+            <motion.h1 initial="hidden" animate="show" transition={{ staggerChildren: 0.12, delayChildren: 0.38 }}>
+              <span className="headline-line">
+                <motion.span variants={{ hidden: { opacity: 0, y: '105%' }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 58, damping: 19 } } }}>
+                  WHERE
+                </motion.span>
+              </span>
+              <span className="headline-line">
+                <motion.em variants={{ hidden: { opacity: 0, y: '105%' }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 58, damping: 19 } } }}>
+                  COMPLEXITY
+                </motion.em>
+              </span>
+              <span className="headline-line">
+                <motion.span variants={{ hidden: { opacity: 0, y: '105%' }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 58, damping: 19 } } }}>
+                  MEETS CLARITY.
+                </motion.span>
+              </span>
+            </motion.h1>
+            <motion.p className="lead" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.88, duration: 0.65 }}>
+              Strategy, intelligence and execution for organizations moving toward what comes next.
+            </motion.p>
+            <motion.div className="hero-cta" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.02, duration: 0.55 }}>
+              <button className="button" onClick={openConversationModal}>
+                Start a conversation <Arrow />
+              </button>
+              <button className="text-link" onClick={() => go('approach')}>
+                Explore our approach <Arrow />
+              </button>
+            </motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.18, duration: 0.7 }}>
+              <HeroRail
+                activeIndex={strategyIndex}
+                paused={strategyPaused || railPaused}
+                reducedMotion={Boolean(reduceMotion)}
+                onItemEnter={pauseStrategy}
+                onItemLeave={scheduleStrategyResume}
+                onRailEnter={() => setRailPaused(true)}
+                onRailLeave={() => setRailPaused(false)}
+              />
+            </motion.div>
+          </div>
+        </section>
+
+        <motion.section className="statement" {...reveal}>
+          <div className="statement-copy">
+            <p className="eyebrow">OUR POINT OF VIEW</p>
+            <h2>Turning complexity into direction.</h2>
+            <p>From strategic decisions to transformation programs, we help organizations create a clearer path from where they are to where they need to be.</p>
+          </div>
+          <div className="statement-image">
+            <img src={workImage1} alt="Business leaders in a modern meeting room overlooking a city skyline" />
+          </div>
+        </motion.section>
+
+        <section id="capabilities" className="section capabilities">
+          <div className="section-intro">
+            <p className="eyebrow">01 / CAPABILITIES</p>
+            <h2>
+              WHAT WE
+              <br />
+              BUILD.
+            </h2>
+          </div>
+          <div className="cap-list">
+            {capabilities.map(([n, t, d]) => (
+              <article
+                className="cap"
+                key={n}
+                tabIndex={0}
+                role="region"
+                aria-label={`${n} ${t}`}
+              >
+                <span>{n}</span>
+                <h3>{t}</h3>
+                <p>{d}</p>
+                <div className="cap-mark" aria-hidden="true">↗</div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="approach" className="method">
+          <div>
+            <p className="eyebrow">02 / OUR APPROACH</p>
+            <h2>
+              THE ARCLANE
+              <br />
+              METHOD.
+            </h2>
+            <p className="lead">A disciplined way to turn moving parts into a clear, compounding direction.</p>
+          </div>
+          <div
+            ref={methodMapRef}
+            className="method-map"
+            onMouseMove={handleMethodMouseMove}
+            onMouseLeave={() => setHoveredMethod(null)}
+          >
+            <svg ref={pathSvgRef} viewBox="0 0 720 600" preserveAspectRatio="none">
+              <path d="M20 45C240 15 130 245 360 232C575 219 492 482 706 545" />
+              <path className="dash" d="M20 45C240 15 130 245 360 232C575 219 492 482 706 545" />
+            </svg>
+
+            {/* Editorial Hover Image Visual — Image Only */}
+            <div
+              ref={floatingVisualRef}
+              className={`method-editorial-panel ${hoveredMethod !== null ? 'is-active' : ''}`}
+              aria-hidden={hoveredMethod === null}
+              style={{ opacity: 0, visibility: 'hidden', pointerEvents: 'none' }}
+            >
+              {activeVisualIndex !== null && (() => {
+                const visual = methodVisuals[activeVisualIndex]
+                if (!visual || !visual.img) return null
+                const image = visual.img
+                return (
+                  <div key={activeVisualIndex} className="method-image-wrap">
+                    <img
+                      ref={floatingImgRef}
+                      src={image}
+                      alt=""
+                      className="method-panel-img"
+                      style={{ objectPosition: visual.pos || 'center' }}
+                    />
+                    <div className="method-panel-wash" aria-hidden="true" />
+                  </div>
+                )
+              })()}
+            </div>
+
+            {methodStages.map((stage, i) => {
+              const isHovered = hoveredMethod === i
+              const isDimmed = hoveredMethod !== null && !isHovered
+              return (
+                <motion.article
+                  className={`stage stage-${i} ${isHovered ? 'is-hovered' : ''} ${isDimmed ? 'is-dimmed' : ''}`}
+                  key={stage.number}
+                  {...reveal}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Stage ${stage.number}: ${stage.title}`}
+                  onMouseEnter={() => setHoveredMethod(i)}
+                  onFocus={() => setHoveredMethod(i)}
+                  onClick={() => setHoveredMethod((prev) => (prev === i ? null : i))}
+                >
+                  <span>{stage.number}</span>
+                  <h3>{stage.title}</h3>
+                  <p>{stage.subtitle}</p>
+                </motion.article>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="network">
+          <img className="network-image" src={globalMindsetImage} alt="Global city skyline at sunset" />
+          <div className="network-image-wash" aria-hidden="true" />
+          <div>
+            <p className="eyebrow">03 / GLOBAL MINDSET</p>
+            <motion.h2 className="network-heading">
+              <motion.span
+                initial={reduceMotion ? false : { opacity: 0, y: 35 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.35 }}
+                transition={{ duration: 1.35, ease: [0.22, 1, 0.36, 1] }}
+              >
+                BUILT FOR A WORLD
+              </motion.span>
+              <motion.span
+                initial={reduceMotion ? false : { opacity: 0, y: 35 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.35 }}
+                transition={{ duration: 1.35, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+              >
+                WITHOUT BORDERS.
+              </motion.span>
+            </motion.h2>
+            <p>Ideas, capital, technology and opportunity move differently now. We create the connections that let them travel farther.</p>
+          </div>
+          <Pathway dark focusIndex={strategyIndex} pulseKey={pulseKey} />
+          <div className="network-stats">
+            <motion.span
+              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.45 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            >
+              07 <small>focus markets</small>
+            </motion.span>
+            <motion.span
+              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.45 }}
+              transition={{ duration: 0.7, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+            >
+              24/7 <small>connected thinking</small>
+            </motion.span>
+            <motion.span
+              initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.45 }}
+              transition={{ duration: 0.7, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            >
+              01 <small>shared direction</small>
+            </motion.span>
+          </div>
+        </section>
+
+        <section id="industries" className="section industries">
+          <p className="eyebrow">04 / INDUSTRIES</p>
+          <h2>
+            WHERE WE
+            <br />
+            CREATE IMPACT.
+          </h2>
+          <div className="industry-list">
+            {industries.map((x, i) => (
+              <button
+                type="button"
+                key={x}
+                className="industry-item"
+              >
+                <span>0{i + 1}</span>
+                {x}
+                <Arrow />
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="work">
+          <p className="eyebrow">05 / SELECTED WORK</p>
+          <h2>
+            THOUGHTFUL WORK.
+            <br />
+            CLEAR OUTCOMES.
+          </h2>
+          <div className="work-grid">
+            {caseStudyProjects.map((proj, i) => (
+              <ProjectCard
+                key={proj.id}
+                project={proj}
+                index={i}
+                onOpenCaseStudy={(p) => setSelectedCaseStudy(p)}
+              />
+            ))}
+          </div>
+
+        </section>
+
+        <section id="insights" className="section insights">
+          <div>
+            <p className="eyebrow">06 / INSIGHTS</p>
+            <h2>
+              THINKING FOR
+              <br />
+              WHAT COMES NEXT.
+            </h2>
+          </div>
+          <div className="articles">
+            {insights.map((insight) => (
+              <InsightRow
+                key={insight.id}
+                insight={insight}
+                onSelect={(item) => setSelectedInsight(item)}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section id="about" className="about">
+          <p className="eyebrow">07 / ABOUT ARCLANE</p>
+          <h2>
+            WE CONNECT THE
+            <br />
+            PIECES THAT MOVE
+            <br />
+            <span>BUSINESSES FORWARD.</span>
+          </h2>
+          <div className="about-media">
+            <img src={aboutImage} alt="Arclane Global team walking through a modern office corridor" />
+          </div>
+          <div className="about-bottom">
+            <p>Arclane Global brings together strategic thinking, intelligence, technology and execution to help organizations move with greater clarity and confidence.</p>
+            <div>
+              <b>VISION</b>
+              <span>Long-term advantage</span>
+              <b>PHILOSOPHY</b>
+              <span>Clarity creates momentum</span>
+              <b>GLOBAL MINDSET</b>
+              <span>Local context, shared ambition</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="contact" className="contact">
+          <Pathway dark />
+          <div className="contact-inner">
+            {/* LEFT COLUMN — Intro */}
             <motion.div
-              className="contact-info"
-              initial={{ opacity: 0, y: 16 }}
+              className="contact-left"
+              initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.6, delay: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             >
-              <p className="contact-info-label">START A CONVERSATION</p>
-              <div className="contact-info-lines">
-                <span>Have a challenge?</span>
-                <span>A product to rethink?</span>
-                <span>A system to transform?</span>
-              </div>
-            </motion.div>
-          </motion.div>
-
-          {/* RIGHT COLUMN — Form */}
-          <div className="contact-right">
-            {sent ? (
-              <div className="contact-success" ref={successRef} role="status" aria-live="polite">
-                <p className="contact-success-eyebrow">08 / CONTACT</p>
-                <h3 className="contact-success-heading">THANK YOU.</h3>
-                <p className="contact-success-sub">
-                  We&apos;ve received your enquiry.<br />
-                  Someone from Arclane will be in touch shortly.
-                </p>
-                <button
-                  type="button"
-                  className="contact-back-btn"
-                  onClick={() => {
-                    setSent(false)
-                    setFormError('')
-                    setSelectedFocus('')
-                  }}
-                >
-                  BACK TO ARCLANE <span className="arrow-icon">↗</span>
-                </button>
-              </div>
-            ) : (
-              <form
-                ref={formRef}
-                noValidate
-                onSubmit={submitContact}
-                className="contact-form"
-                aria-label="Contact enquiry form"
+              <p className="eyebrow">08 / CONTACT</p>
+              <h2 className="contact-headline">
+                LET&apos;S BUILD
+                <br />
+                WHAT COMES
+                <br />
+                NEXT.
+              </h2>
+              <motion.p
+                className="contact-sub"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.7, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
               >
-                {/* Name + Email */}
-                <motion.div
-                  className="contact-form-grid"
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <div className="cf-field">
-                    <label htmlFor="cf-name" className="cf-label">YOUR NAME <span className="cf-required">*</span></label>
-                    <input
-                      id="cf-name"
-                      name="name"
-                      required
-                      autoComplete="name"
-                      placeholder="Your name"
-                      className="cf-input"
-                    />
-                  </div>
-                  <div className="cf-field">
-                    <label htmlFor="cf-email" className="cf-label">WORK EMAIL <span className="cf-required">*</span></label>
-                    <input
-                      id="cf-email"
-                      name="email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      placeholder="you@company.com"
-                      className="cf-input"
-                    />
-                  </div>
-                </motion.div>
+                Tell us what you&apos;re working through.<br />We&apos;ll find the right starting point.
+              </motion.p>
+              <motion.div
+                className="contact-info"
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.6, delay: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <p className="contact-info-label">START A CONVERSATION</p>
+                <div className="contact-info-lines">
+                  <span>Have a challenge?</span>
+                  <span>A product to rethink?</span>
+                  <span>A system to transform?</span>
+                </div>
+              </motion.div>
+            </motion.div>
 
-                {/* Company + Phone */}
-                <motion.div
-                  className="contact-form-grid"
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{ duration: 0.6, delay: 0.07, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <div className="cf-field">
-                    <label htmlFor="cf-company" className="cf-label">COMPANY <span className="cf-required">*</span></label>
-                    <input
-                      id="cf-company"
-                      name="company"
-                      required
-                      autoComplete="organization"
-                      placeholder="Company name"
-                      className="cf-input"
-                    />
-                  </div>
-                  <div className="cf-field">
-                    <label htmlFor="cf-phone" className="cf-label">PHONE <span className="cf-optional">(optional)</span></label>
-                    <input
-                      id="cf-phone"
-                      name="phone"
-                      type="tel"
-                      autoComplete="tel"
-                      placeholder="+91 ..."
-                      className="cf-input"
-                    />
-                  </div>
-                </motion.div>
-
-                {/* Focus chips */}
-                <motion.div
-                  className="cf-chips-wrap"
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{ duration: 0.6, delay: 0.13, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <span className="cf-label">
-                    WHAT ARE YOU LOOKING FOR? <span className="cf-required">*</span>
-                  </span>
-                  <div
-                    className="cf-chips"
-                    role="group"
-                    aria-label="Focus area selection"
-                  >
-                    {[
-                      'Digital Transformation',
-                      'Product Engineering',
-                      'AI & Intelligence',
-                      'Data & Analytics',
-                      'Cloud & DevOps',
-                      'Experience & Design',
-                      'Other',
-                    ].map((chip) => (
-                      <button
-                        key={chip}
-                        type="button"
-                        className={`cf-chip ${selectedFocus === chip ? 'is-selected' : ''}`}
-                        aria-pressed={selectedFocus === chip}
-                        onClick={() => setSelectedFocus(selectedFocus === chip ? '' : chip)}
-                      >
-                        {chip}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-
-                {/* Message */}
-                <motion.div
-                  className="cf-field"
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <label htmlFor="cf-message" className="cf-label">
-                    TELL US A LITTLE MORE <span className="cf-required">*</span>
-                  </label>
-                  <textarea
-                    id="cf-message"
-                    name="message"
-                    required
-                    rows={5}
-                    placeholder="What are you trying to solve?"
-                    className="cf-input cf-textarea"
-                  />
-                </motion.div>
-
-                {/* Error */}
-                {formError && (
-                  <motion.p
-                    className="form-error"
-                    role="alert"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {formError}
-                  </motion.p>
-                )}
-
-                {/* Submit */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={{ duration: 0.5, delay: 0.27, ease: [0.22, 1, 0.36, 1] }}
-                >
+            {/* RIGHT COLUMN — Form */}
+            <div className="contact-right">
+              {sent ? (
+                <div className="contact-success" ref={successRef} role="status" aria-live="polite">
+                  <p className="contact-success-eyebrow">08 / CONTACT</p>
+                  <h3 className="contact-success-heading">THANK YOU.</h3>
+                  <p className="contact-success-sub">
+                    We&apos;ve received your enquiry.<br />
+                    Someone from Arclane will be in touch shortly.
+                  </p>
                   <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`cf-submit ${isSubmitting ? 'is-loading' : ''}`}
-                    aria-label="Send your enquiry"
+                    type="button"
+                    className="contact-back-btn"
+                    onClick={() => {
+                      setSent(false)
+                      setFormError('')
+                      setSelectedFocus('')
+                    }}
                   >
-                    <span className="cf-submit-text">
-                      {isSubmitting ? 'SENDING...' : 'SEND ENQUIRY'}
-                    </span>
-                    <span className="cf-submit-arrow" aria-hidden="true">↗</span>
+                    BACK TO ARCLANE <span className="arrow-icon">↗</span>
                   </button>
-                </motion.div>
-              </form>
-            )}
+                </div>
+              ) : (
+                <form
+                  ref={formRef}
+                  noValidate
+                  onSubmit={submitContact}
+                  className="contact-form"
+                  aria-label="Contact enquiry form"
+                >
+                  {/* Name + Email */}
+                  <motion.div
+                    className="contact-form-grid"
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <div className="cf-field">
+                      <label htmlFor="cf-name" className="cf-label">YOUR NAME <span className="cf-required">*</span></label>
+                      <input
+                        id="cf-name"
+                        name="name"
+                        required
+                        autoComplete="name"
+                        placeholder="Your name"
+                        className="cf-input"
+                      />
+                    </div>
+                    <div className="cf-field">
+                      <label htmlFor="cf-email" className="cf-label">WORK EMAIL <span className="cf-required">*</span></label>
+                      <input
+                        id="cf-email"
+                        name="email"
+                        type="email"
+                        required
+                        autoComplete="email"
+                        placeholder="you@company.com"
+                        className="cf-input"
+                      />
+                    </div>
+                  </motion.div>
+
+                  {/* Company + Phone */}
+                  <motion.div
+                    className="contact-form-grid"
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={{ duration: 0.6, delay: 0.07, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <div className="cf-field">
+                      <label htmlFor="cf-company" className="cf-label">COMPANY <span className="cf-required">*</span></label>
+                      <input
+                        id="cf-company"
+                        name="company"
+                        required
+                        autoComplete="organization"
+                        placeholder="Company name"
+                        className="cf-input"
+                      />
+                    </div>
+                    <div className="cf-field">
+                      <label htmlFor="cf-phone" className="cf-label">PHONE <span className="cf-optional">(optional)</span></label>
+                      <input
+                        id="cf-phone"
+                        name="phone"
+                        type="tel"
+                        autoComplete="tel"
+                        placeholder="+91 ..."
+                        className="cf-input"
+                      />
+                    </div>
+                  </motion.div>
+
+                  {/* Focus chips */}
+                  <motion.div
+                    className="cf-chips-wrap"
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={{ duration: 0.6, delay: 0.13, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <span className="cf-label">
+                      WHAT ARE YOU LOOKING FOR? <span className="cf-required">*</span>
+                    </span>
+                    <div
+                      className="cf-chips"
+                      role="group"
+                      aria-label="Focus area selection"
+                    >
+                      {[
+                        'Intelligent Automation',
+                        'Digital Experiences',
+                        'Scalable Products',
+                        'Cloud Infrastructure',
+                        'Custom Engineering',
+                        'Performance Marketing',
+                        'Other',
+                      ].map((chip) => (
+                        <button
+                          key={chip}
+                          type="button"
+                          className={`cf-chip ${selectedFocus === chip ? 'is-selected' : ''}`}
+                          aria-pressed={selectedFocus === chip}
+                          onClick={() => setSelectedFocus(selectedFocus === chip ? '' : chip)}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+
+                  {/* Message */}
+                  <motion.div
+                    className="cf-field"
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <label htmlFor="cf-message" className="cf-label">
+                      TELL US A LITTLE MORE <span className="cf-required">*</span>
+                    </label>
+                    <textarea
+                      id="cf-message"
+                      name="message"
+                      required
+                      rows={5}
+                      placeholder="What are you trying to solve?"
+                      className="cf-input cf-textarea"
+                    />
+                  </motion.div>
+
+                  {/* Error */}
+                  {formError && (
+                    <motion.p
+                      className="form-error"
+                      role="alert"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {formError}
+                    </motion.p>
+                  )}
+
+                  {/* Submit */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={{ duration: 0.5, delay: 0.27, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className={`cf-submit ${isSubmitting ? 'is-loading' : ''}`}
+                      aria-label="Send your enquiry"
+                    >
+                      <span className="cf-submit-text">
+                        {isSubmitting ? 'SENDING...' : 'SEND ENQUIRY'}
+                      </span>
+                      <span className="cf-submit-arrow" aria-hidden="true">↗</span>
+                    </button>
+                  </motion.div>
+                </form>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <footer>
-        <div className="wordmark">
-          ARCLANE <i>GLOBAL</i>
-        </div>
-        <div>
-          <button onClick={() => go('capabilities')}>Capabilities</button>
-          <button onClick={() => go('approach')}>Approach</button>
-          <button onClick={() => go('industries')}>Industries</button>
-          <button onClick={() => go('contact')}>Contact</button>
-        </div>
-        <p>© ARCLANE GLOBAL · Privacy · Terms</p>
-      </footer>
+        <footer>
+          <div className="footer-brand">
+            <div className="wordmark">
+              ARCLANE <i>GLOBAL</i>
+            </div>
+            <p className="footer-copy">© ARCLANE GLOBAL · Privacy · Terms</p>
+          </div>
 
-      {selectedCaseStudy && (
-        <CaseStudyModal
-          project={selectedCaseStudy}
-          onClose={() => setSelectedCaseStudy(null)}
-        />
-      )}
+          <nav className="footer-nav" aria-label="Footer navigation">
 
-      {selectedInsight && (
-        <ArticleModal
-          insight={selectedInsight}
-          onClose={() => setSelectedInsight(null)}
-        />
-      )}
-    </main>
+
+          </nav>
+
+          <div className="footer-social">
+            <span className="footer-social-heading">CONTACT WITH US</span>
+            <div className="footer-social-divider" aria-hidden="true" />
+            <div className="footer-social-links">
+              <a
+                href="https://www.linkedin.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-social-link"
+                aria-label="LinkedIn (opens in new tab)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="social-icon" aria-hidden="true">
+                  <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+                  <rect x="2" y="9" width="4" height="12" />
+                  <circle cx="4" cy="4" r="2" />
+                </svg>
+                <span>LinkedIn</span>
+              </a>
+              <a
+                href="https://x.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-social-link"
+                aria-label="X / Twitter (opens in new tab)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" className="social-icon" aria-hidden="true">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+                <span>X</span>
+              </a>
+              <a
+                href="https://www.instagram.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-social-link"
+                aria-label="Instagram (opens in new tab)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="social-icon" aria-hidden="true">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+                </svg>
+                <span>Instagram</span>
+              </a>
+            </div>
+          </div>
+        </footer>
+
+        {selectedCaseStudy && (
+          <CaseStudyModal
+            project={selectedCaseStudy}
+            onClose={() => setSelectedCaseStudy(null)}
+          />
+        )}
+
+        {selectedInsight && (
+          <ArticleModal
+            insight={selectedInsight}
+            onClose={() => setSelectedInsight(null)}
+          />
+        )}
+
+        {/* Start a Conversation Editorial Modal */}
+        <AnimatePresence>
+          {isConversationModalOpen && (
+            <motion.div
+              className="conversation-modal-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              onClick={closeConversationModal}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cm-title"
+            >
+              <motion.div
+                className="conversation-modal"
+                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 15, scale: 0.98 }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="cm-topbar">
+                  <p className="cm-eyebrow">START A CONVERSATION</p>
+                  <button
+                    type="button"
+                    className="cm-close"
+                    onClick={closeConversationModal}
+                    aria-label="Close conversation modal"
+                  >
+                    CLOSE <span className="cm-close-x">×</span>
+                  </button>
+                </div>
+
+                {cmSent ? (
+                  <div className="cm-success" role="status" aria-live="polite">
+                    <p className="cm-success-eyebrow">ARCLANE GLOBAL / ENQUIRY RECEIVED</p>
+                    <h3 className="cm-success-heading">THANK YOU.</h3>
+                    <p className="cm-success-sub">
+                      Your enquiry has been received.<br />
+                      We&apos;ll be in touch shortly.
+                    </p>
+                    <button
+                      type="button"
+                      className="cm-back-btn"
+                      onClick={resetAndCloseConversationModal}
+                    >
+                      BACK TO SITE <Arrow />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <h2 id="cm-title" className="cm-heading">
+                      LET&apos;S BUILD
+                      <br />
+                      WHAT COMES NEXT.
+                    </h2>
+                    <p className="cm-sub">
+                      Tell us what you&apos;re working through.
+                      <br />
+                      We&apos;ll find the right starting point.
+                    </p>
+
+                    <form className="cm-form" noValidate onSubmit={submitConversationModal}>
+                      <div className="cm-grid">
+                        <div className={`cm-field ${cmErrors.name ? 'has-error' : ''}`}>
+                          <label htmlFor="cm-name" className="cm-label">
+                            FULL NAME <span className="cm-required">*</span>
+                          </label>
+                          <input
+                            id="cm-name"
+                            type="text"
+                            placeholder="Your name"
+                            value={cmName}
+                            onChange={(e) => {
+                              setCmName(e.target.value)
+                              if (cmErrors.name) setCmErrors((prev) => ({ ...prev, name: undefined }))
+                            }}
+                            className="cm-input"
+                            required
+                          />
+                          {cmErrors.name && <span className="cm-inline-error">{cmErrors.name}</span>}
+                        </div>
+
+                        <div className={`cm-field ${cmErrors.email ? 'has-error' : ''}`}>
+                          <label htmlFor="cm-email" className="cm-label">
+                            WORK EMAIL <span className="cm-required">*</span>
+                          </label>
+                          <input
+                            id="cm-email"
+                            type="email"
+                            placeholder="you@company.com"
+                            value={cmEmail}
+                            onChange={(e) => {
+                              setCmEmail(e.target.value)
+                              if (cmErrors.email) setCmErrors((prev) => ({ ...prev, email: undefined }))
+                            }}
+                            className="cm-input"
+                            required
+                          />
+                          {cmErrors.email && <span className="cm-inline-error">{cmErrors.email}</span>}
+                        </div>
+
+                        <div className="cm-field">
+                          <label htmlFor="cm-company" className="cm-label">
+                            COMPANY
+                          </label>
+                          <input
+                            id="cm-company"
+                            type="text"
+                            placeholder="Company name"
+                            value={cmCompany}
+                            onChange={(e) => setCmCompany(e.target.value)}
+                            className="cm-input"
+                          />
+                        </div>
+
+                        <div className="cm-field">
+                          <label htmlFor="cm-phone" className="cm-label">
+                            PHONE
+                          </label>
+                          <input
+                            id="cm-phone"
+                            type="tel"
+                            placeholder="+00 000 000 000"
+                            value={cmPhone}
+                            onChange={(e) => setCmPhone(e.target.value)}
+                            className="cm-input"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="cm-help-options">
+                        <label className="cm-label">WHAT CAN WE HELP WITH?</label>
+                        <div className="cm-chips" role="group" aria-label="What can we help with?">
+                          {conversationServices.map((service) => {
+                            const isSelected = cmService === service
+                            return (
+                              <button
+                                key={service}
+                                type="button"
+                                className={`cm-chip ${isSelected ? 'is-selected' : ''}`}
+                                aria-pressed={isSelected}
+                                onClick={() => setCmService(isSelected ? '' : service)}
+                              >
+                                {service}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className={`cm-field full-width ${cmErrors.message ? 'has-error' : ''}`}>
+                        <label htmlFor="cm-message" className="cm-label">
+                          MESSAGE <span className="cm-required">*</span>
+                        </label>
+                        <textarea
+                          id="cm-message"
+                          placeholder="Tell us a little about your project..."
+                          value={cmMessage}
+                          onChange={(e) => {
+                            setCmMessage(e.target.value)
+                            if (cmErrors.message) setCmErrors((prev) => ({ ...prev, message: undefined }))
+                          }}
+                          className="cm-textarea"
+                          required
+                        />
+                        {cmErrors.message && <span className="cm-inline-error">{cmErrors.message}</span>}
+                      </div>
+
+                      {cmErrors.form && (
+                        <div className="cm-form-error" role="alert">
+                          <span>{cmErrors.form}</span>
+                        </div>
+                      )}
+
+                      <div className="cm-submit-wrap">
+                        <button
+                          type="submit"
+                          className="cm-submit"
+                          disabled={cmSubmitting}
+                        >
+                          {cmSubmitting ? 'SENDING ENQUIRY...' : 'SUBMIT ENQUIRY'} <Arrow />
+                        </button>
+                      </div>
+                    </form>
+                  </>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
     </>
   )
 }
