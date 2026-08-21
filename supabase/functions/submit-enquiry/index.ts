@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.112.3'
 
 const corsHeaders = {
@@ -9,140 +8,160 @@ const corsHeaders = {
 
 interface EnquiryRequestBody {
   name: string
-  workEmail: string
+  workEmail?: string
+  email?: string
   company: string
   phone?: string | null
-  focusArea: string
+  focusArea?: string
+  service?: string
   message: string
 }
 
-serve(async (req: Request) => {
-  // Handle CORS Preflight
+Deno.serve(async (req: Request) => {
+  // 1. Handle OPTIONS preflight request immediately with HTTP 200 and CORS headers
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', {
+      status: 200,
+      headers: corsHeaders,
+    })
   }
 
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ success: false, error: 'Method not allowed' }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      {
+        status: 405,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    )
   }
 
   try {
     const body: EnquiryRequestBody = await req.json()
     const name = (body.name || '').trim()
-    const workEmail = (body.workEmail || '').trim()
+    const workEmail = (body.workEmail || body.email || '').trim()
     const company = (body.company || '').trim()
-    const phone = (body.phone || '').trim() || null
-    const focusArea = (body.focusArea || '').trim()
+    const phone = (body.phone || '').trim() || ''
+    const service = (body.focusArea || body.service || '').trim()
     const message = (body.message || '').trim()
 
-    // 1. Validation
-    if (!name || !workEmail || !company || !focusArea || !message) {
+    // 2. Validate required fields
+    if (!name || !workEmail || !company || !service || !message) {
       return new Response(
         JSON.stringify({ success: false, error: 'All required fields must be provided.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
       )
     }
 
-    // 2. Database Insert (Existing Supabase public.enquiries table)
+    // 3. Database Insert into existing public.enquiries table
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || ''
-    
-    let enquiryId: string | null = null
+    const supabaseServiceKey =
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_ANON_KEY') || ''
+
     if (supabaseUrl && supabaseServiceKey) {
       const supabase = createClient(supabaseUrl, supabaseServiceKey)
-      const { data: dbData, error: dbError } = await supabase
-        .from('enquiries')
-        .insert({
-          name,
-          work_email: workEmail,
-          company,
-          phone,
-          focus_area: focusArea,
-          message,
-          status: 'new',
-        })
-        .select('id')
-        .single()
+      const { error: dbError } = await supabase.from('enquiries').insert({
+        name,
+        work_email: workEmail,
+        company,
+        phone: phone || null,
+        focus_area: service,
+        message,
+        status: 'new',
+      })
 
       if (dbError) {
-        console.error('[submit-enquiry] Database insert error:', dbError)
+        console.error('[submit-enquiry] Database insert error:', dbError.message)
         return new Response(
-          JSON.stringify({ success: false, error: 'Database error while saving enquiry.' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: "We couldn't submit your enquiry right now. Please try again." }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
         )
       }
-      enquiryId = dbData?.id || null
     }
 
-    // 3. Google Sheets Integration (Server-Side Webhook)
-    const sheetsWebhookUrl = Deno.env.get('GOOGLE_SHEETS_WEBHOOK_URL')
+    // 4. Google Sheets Integration via Google Apps Script Web App
+    const sheetsWebhookUrl = Deno.env.get('GOOGLE_SHEETS_WEBHOOK_URL') || ''
     const sheetsWebhookSecret = Deno.env.get('GOOGLE_SHEETS_WEBHOOK_SECRET') || ''
 
-    if (sheetsWebhookUrl && sheetsWebhookUrl.trim() !== '') {
-      try {
-        const sheetPayload = {
-          name,
-          email: workEmail,
-          company,
-          phone: phone || '',
-          service: focusArea,
-          message,
-          secret: sheetsWebhookSecret,
-          enquiryId: enquiryId || '',
+    if (!sheetsWebhookUrl || sheetsWebhookUrl.trim() === '') {
+      console.error('[submit-enquiry] Missing GOOGLE_SHEETS_WEBHOOK_URL in environment.')
+      return new Response(
+        JSON.stringify({ success: false, error: "We couldn't submit your enquiry right now. Please try again." }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
-
-        const sheetResponse = await fetch(sheetsWebhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(sheetPayload),
-          redirect: 'follow',
-        })
-
-        if (!sheetResponse.ok) {
-          const errorText = await sheetResponse.text()
-          console.error('[submit-enquiry] Google Apps Script HTTP error:', sheetResponse.status, errorText)
-          return new Response(
-            JSON.stringify({ success: false, error: 'Google Sheets sync failed.' }),
-            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-
-        const sheetResult = await sheetResponse.json().catch(() => null)
-        if (sheetResult && sheetResult.success === false) {
-          console.error('[submit-enquiry] Google Apps Script returned error:', sheetResult.error)
-          return new Response(
-            JSON.stringify({ success: false, error: sheetResult.error || 'Google Sheets sync failed.' }),
-            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-      } catch (sheetErr) {
-        console.error('[submit-enquiry] Failed calling Google Apps Script webhook:', sheetErr)
-        return new Response(
-          JSON.stringify({ success: false, error: 'Unable to reach Google Sheets webhook.' }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+      )
     }
 
+    const sheetPayload = {
+      secret: sheetsWebhookSecret,
+      name,
+      email: workEmail,
+      company,
+      phone,
+      service,
+      message,
+    }
+
+    const googleResponse = await fetch(sheetsWebhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(sheetPayload),
+      redirect: 'follow',
+    })
+
+    if (!googleResponse.ok) {
+      console.error('[submit-enquiry] Google Apps Script HTTP status:', googleResponse.status)
+      return new Response(
+        JSON.stringify({ success: false, error: "We couldn't submit your enquiry right now. Please try again." }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    const sheetResult = await googleResponse.json().catch(() => null)
+    if (!sheetResult || sheetResult.success !== true) {
+      console.error('[submit-enquiry] Google Apps Script response:', sheetResult)
+      return new Response(
+        JSON.stringify({ success: false, error: "We couldn't submit your enquiry right now. Please try again." }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // 5. Return success response with CORS headers
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Enquiry submitted successfully.',
-        id: enquiryId,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     )
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown server error'
-    console.error('[submit-enquiry] Unexpected handler error:', errorMsg)
+    console.error('[submit-enquiry] Handler exception:', errorMsg)
     return new Response(
-      JSON.stringify({ success: false, error: 'An unexpected server error occurred.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: "We couldn't submit your enquiry right now. Please try again." }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     )
   }
 })

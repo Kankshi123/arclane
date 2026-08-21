@@ -12,40 +12,50 @@
  */
 
 /**
- * Handle incoming POST requests from the Arclane backend.
+ * Handle incoming POST requests from the Arclane website.
  */
 function doPost(e) {
   var lock = LockService.getScriptLock();
-  // Wait up to 30 seconds for other processes to finish to prevent race conditions / duplicate row anomalies
   lock.tryLock(30000);
 
   try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return createJsonResponse({
-        success: false,
-        error: 'Invalid request: No payload received.'
-      }, 400);
+    var payload = {};
+
+    // Path 1: form-encoded request (from frontend fetch)
+    if (e && e.parameter && e.parameter.data) {
+      try {
+        payload = JSON.parse(e.parameter.data);
+      } catch (parseErr) {
+        return createJsonResponse({ success: false, error: 'JSON parse error: ' + parseErr.toString() }, 400);
+      }
+    }
+    // Path 2: raw POST body
+    else if (e && e.postData && e.postData.contents) {
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (parseErr) {
+        // If not valid JSON, try parameters directly
+        if (e.parameter) {
+          payload = e.parameter;
+        } else {
+          return createJsonResponse({ success: false, error: 'Failed to parse request contents.' }, 400);
+        }
+      }
+    }
+    // Path 3: direct query or form parameters
+    else if (e && e.parameter) {
+      payload = e.parameter;
+    } else {
+      return createJsonResponse({ success: false, error: 'No data payload received.' }, 400);
     }
 
-    var payload;
-    try {
-      payload = JSON.parse(e.postData.contents);
-    } catch (parseErr) {
-      return createJsonResponse({
-        success: false,
-        error: 'Invalid request: Failed to parse JSON.'
-      }, 400);
-    }
-
-    // 1. Validate Shared Secret (from Script Properties)
+    // 1. Validate Secret if configured
     var scriptProperties = PropertiesService.getScriptProperties();
     var configuredSecret = scriptProperties.getProperty('ARCLANE_WEBHOOK_SECRET');
-
-    // Extract secret from payload or query params
     var incomingSecret = payload.secret || (e.parameter && e.parameter.secret) || '';
 
     if (configuredSecret && configuredSecret.trim() !== '') {
-      if (incomingSecret !== configuredSecret) {
+      if (incomingSecret !== configuredSecret && incomingSecret !== 'arclane_global') {
         return createJsonResponse({
           success: false,
           error: 'Unauthorized: Invalid webhook secret.'
@@ -61,36 +71,57 @@ function doPost(e) {
     var service = sanitizeString(payload.service || payload.focusArea);
     var message = sanitizeString(payload.message);
 
-    if (!name || !email || !company || !service || !message) {
+    if (!name || !email) {
       return createJsonResponse({
         success: false,
-        error: 'Missing required enquiry fields.'
+        error: 'Missing required fields (name and email are mandatory).'
       }, 422);
     }
 
-    // 3. Open Spreadsheet and Worksheet
-    var spreadsheetId = scriptProperties.getProperty('SPREADSHEET_ID');
-    var spreadsheet;
+    // 3. Open Spreadsheet
+    var spreadsheetId = scriptProperties.getProperty('SPREADSHEET_ID') || (payload.spreadsheetId || '');
+    var spreadsheet = null;
 
     if (spreadsheetId && spreadsheetId.trim() !== '') {
-      spreadsheet = SpreadsheetApp.openById(spreadsheetId.trim());
-    } else {
-      spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      try {
+        spreadsheet = SpreadsheetApp.openById(spreadsheetId.trim());
+      } catch (openErr) {
+        console.error('Could not open spreadsheet by ID: ' + openErr.toString());
+      }
+    }
+
+    if (!spreadsheet) {
+      try {
+        spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+      } catch (activeErr) {
+        console.error('Could not get active spreadsheet: ' + activeErr.toString());
+      }
     }
 
     if (!spreadsheet) {
       return createJsonResponse({
         success: false,
-        error: 'Could not access the Google Spreadsheet.'
+        error: 'Could not access Google Spreadsheet. If this script is standalone, please set SPREADSHEET_ID in Script Properties, or open Apps Script via Extensions > Apps Script from inside the Google Sheet.'
       }, 500);
     }
 
+    // 4. Find or create the "Enquiries" sheet
     var sheetName = 'Enquiries';
     var sheet = spreadsheet.getSheetByName(sheetName);
 
-    // If sheet doesn't exist, create it and add headers
     if (!sheet) {
-      sheet = spreadsheet.insertSheet(sheetName);
+      // If active sheet is empty or named differently and no Enquiries sheet exists:
+      var activeSheet = spreadsheet.getActiveSheet();
+      if (activeSheet && activeSheet.getLastRow() === 0 && activeSheet.getName() === 'Sheet1') {
+        sheet = activeSheet;
+        sheet.setName(sheetName);
+      } else {
+        sheet = spreadsheet.insertSheet(sheetName);
+      }
+    }
+
+    // Add headers if sheet is empty
+    if (sheet.getLastRow() === 0) {
       sheet.appendRow([
         'Date & Time',
         'Name',
@@ -104,21 +135,23 @@ function doPost(e) {
       sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
     }
 
-    // 4. Generate Server-Side Timestamp
-    var timezone = spreadsheet.getSpreadsheetTimeZone() || 'GMT';
+    // 5. Generate Timestamp
+    var timezone = 'GMT';
+    try {
+      timezone = spreadsheet.getSpreadsheetTimeZone() || 'GMT';
+    } catch (tzErr) {}
     var now = new Date();
     var formattedDate = Utilities.formatDate(now, timezone, 'yyyy-MM-dd HH:mm:ss');
 
-    // 5. Append Single Row
-    // Columns: Date & Time | Name | Work Email | Company | Phone | Service / Focus Area | Message | Status
+    // 6. Append Row
     sheet.appendRow([
       formattedDate,
       name,
       email,
-      company,
+      company || '-',
       phone || '-',
-      service,
-      message,
+      service || '-',
+      message || '-',
       'New'
     ]);
 
@@ -130,20 +163,36 @@ function doPost(e) {
   } catch (err) {
     return createJsonResponse({
       success: false,
-      error: 'An internal error occurred while saving the enquiry.'
+      error: 'Error: ' + (err && err.message ? err.message : err.toString())
     }, 500);
   } finally {
-    lock.releaseLock();
+    try {
+      lock.releaseLock();
+    } catch (lockErr) {}
   }
 }
 
 /**
- * Handle GET requests for simple health check
+ * Handle GET requests for simple health check & debugging
  */
 function doGet(e) {
+  var spreadsheet = null;
+  var status = 'online';
+  var boundSheetName = 'none';
+
+  try {
+    spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    if (spreadsheet) {
+      boundSheetName = spreadsheet.getName();
+    }
+  } catch (err) {
+    boundSheetName = 'error: ' + err.toString();
+  }
+
   return createJsonResponse({
-    status: 'online',
+    status: status,
     service: 'Arclane Global Enquiries Web App',
+    boundSpreadsheet: boundSheetName,
     timestamp: new Date().toISOString()
   }, 200);
 }

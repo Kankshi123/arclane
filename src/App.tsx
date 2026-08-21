@@ -1618,8 +1618,9 @@ function PublicApp() {
         event.currentTarget.reset()
         setSelectedFocus('')
       }
-    } catch {
-      setFormError('Submission failed. Please try again in a moment.')
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "We couldn't submit your enquiry right now. Please try again."
+      setFormError(errMsg)
     } finally {
       setIsSubmitting(false)
     }
